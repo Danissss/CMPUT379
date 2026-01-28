@@ -39,7 +39,7 @@ int fifo_0_1, fifo_1_1, fifo_2_1, fifo_3_1, fifo_4_1, fifo_5_1, fifo_6_1, fifo_7
 char* RemoveDigits(char* input);
 void controller(int n_swithes);
 void switches(char **arg, const string &input);
-const char* composeMSTR (const string &a,  int port1,  int port2, char *port3, char *kind);
+string composeMSTR (const string &a,  int port1,  int port2, char *port3, char *kind);
 void sendFrame (int fd, MSG *msg);
 string rcvFrame (int fd);
 void set_cpu_time();
@@ -100,71 +100,54 @@ void controller(int n_swithes){
 	char kind[10] = "OPEN";
 	string ab_string = "null";
 	char ab_char[5] = "null";
-	const char * msg = (char *) malloc(8192);
-	msg = composeMSTR(ab_string,0,0,ab_char,kind);
-	char *recieved_msg = (char *) malloc(8192);
-	read(fifo_0_1,recieved_msg,8192);
+
+    // Fix: Store string properly
+	string msg_str = composeMSTR(ab_string,0,0,ab_char,kind);
+
+    // Fix: Allocate zero-padded buffer for reading
+	char *recieved_msg = (char *) calloc(1, 8192); // Use calloc for zero-init
+
+    // Fix: Loop read
+    int bytes_read = 0;
+    while (bytes_read < 8192) {
+        int n = read(fifo_0_1, recieved_msg + bytes_read, 8192 - bytes_read);
+        if (n <= 0) break;
+        bytes_read += n;
+    }
+
 	cout << "recieve msg from switches " << recieved_msg << endl;
-	write(fifo_1_1,msg,8192);
-	// rvc_msg = rcvFrame(fifo_0_1);
-	// cout << "recieved msg from switches: " << rvc_msg << endl;
-	// // cout << rvc_msg << endl;
-	// sendFrame(fifo_1_1, &msg); 
-	// cout << "in while"  << endl;
-	// char *nul = (char *) malloc(100);
-	// read(fifo_0_1,nul,100);
-	// cout << nul << endl;
-	// write(fifo_1_1,"open",100);
 
-	// rvc_msg = rcvFrame(fifo_0_1);
-	// cout << "recieved msg from switches: " << rvc_msg << endl;
-	// sendFrame(fifo_1_1,&msg);
+    // Fix: Write properly
+    char *msg_buf = (char *) calloc(1, 8192);
+    strncpy(msg_buf, msg_str.c_str(), 8191);
+	write(fifo_1_1, msg_buf, 8192);
 
+    free(recieved_msg);
+    free(msg_buf);
 
 	while(1){
-		
-
-		// reciving fifo file
-		// controller always recive fifo_0_1 file 
-		
-		// recive msg from switches;
-		// how to make sure that controller print the msg when it arrived?
-		// how to get rcvFrame wait for different switch?
-		 
-		// cout << rvc_msg << endl;
-
-		// rvc_msg = rcvFrame(fifo_0_1);
-		// sendFrame(fifo_1_1, &msg);
-		// rvc_msg = rcvFrame(fifo_0_1);
-		// sendFrame(fifo_1_1, &msg);
-		// rvc_msg = rcvFrame(fifo_0_1);
-		// sendFrame(fifo_1_1, &msg);
-		// rvc_msg = rcvFrame(fifo_0_1);
-		// sendFrame(fifo_1_1, &msg);
-
-
 		///////////////////////////////////
 		FD_ZERO(&readfds);
 		FD_SET(fd,&readfds);
-		select(8,&readfds,NULL,NULL,NULL);
+		select(fd+1,&readfds,NULL,NULL,NULL); // fd is 0, so nfds should be 1
 		memset((void *) buf, 0, 11);
 		ret = read(fd, (void*)buf, 10);
 		/////////////////////////////////////
 
-		// string s; s.push_back(buf); 
-
 		if(ret != -1){
-			// cout << strcmp(buf,"list") << endl;
+            if (ret == 0) break; // Fix infinite loop on EOF
 
-			if(strcmp(buf,"list")==10){
+			if(strcmp(buf,"list")==0){ // Fix strcmp check
 				cout << "list command" << endl;
 
 			}
-			else if (strcmp(buf,"exit")==10){
+			else if (strcmp(buf,"exit")==0){ // Fix strcmp check
 				break;
 			}
 			else{
-				cout << "unknown command! [list/exit]" << endl;
+                // Only print unknown command if buf is not just newline/empty
+                if (strlen(buf) > 1)
+				    cout << "unknown command! [list/exit]" << endl;
 			}
 		}
 	}
@@ -265,24 +248,26 @@ void switches(char **arg, const string &input){
 	char kind[10] = "ACK";
 	string rvc_msg;
 	// send msg to controller;
-	const char * send_msg = (char *) malloc(8192);
-	send_msg = composeMSTR(input,port1,port2,port3,kind);
+
+    string send_msg_str = composeMSTR(input,port1,port2,port3,kind);
+    char *send_msg = (char *) calloc(1, 8192);
+    strncpy(send_msg, send_msg_str.c_str(), 8191);
 	
 	write(fifo_0_1,send_msg,8192);
-    char *nul = (char *) malloc(8192);
-    read(fifo_1_1,nul,8192);
-    cout << nul << endl;
-//
+    free(send_msg);
 
-
+    char *nul = (char *) calloc(1, 8192);
     
-	// sendFrame(fifo_0_1,&send_msg);
-	// cout << "sendFrame from switch" << endl;
+    // Fix: Loop read
+    int bytes_read = 0;
+    while (bytes_read < 8192) {
+        int n = read(fifo_1_1, nul + bytes_read, 8192 - bytes_read);
+        if (n <= 0) break;
+        bytes_read += n;
+    }
 
-	// // recive msg from controller;
-	// rvc_msg = rcvFrame(fifo_1_1); 
-	// cout << "recived from controller: " << rvc_msg << endl;
-
+    cout << nul << endl;
+    free(nul);
 
 	// prepare the print for list command 
 	// string srcIP = "0-1000";
@@ -297,36 +282,31 @@ void switches(char **arg, const string &input){
 		string single_command = "["+i_s+"]" + "(srcIP= 0-1000, destIP= "+ port3 +", action= "+" DELIVER:3 " + "pri= 4, pkgCount= " + pkgCount_s + ")";
 		list_command[i] = single_command;
 	}
-	// general information (total)
-
-	// string general_info_1 = "Packet Stats: \n" + "\t Recived: ADMIT:" + ADMIT + ", ACK: " + ACK; //+ ", ADDRULE: " + ADDRULE + ", RELAYIN: "+ RELAYIN +"\n";
-	// string general_info_2 = "\t Recived: OPEN:" + OPEN + ", QUERY: " + QUERY + ", RELAYOUT: " + RELAYOUT + "\n";
-	// string general_info = general_info_1 + general_info_2;
 
 	while(1){
-
-
 		/////////////////////////////////////
 		FD_ZERO(&readfds);
 		FD_SET(fd,&readfds);
-		select(8,&readfds,NULL,NULL,NULL);
+		select(fd+1,&readfds,NULL,NULL,NULL);
 		memset((void *) buf, 0, 11);
 		ret = read(fd, (void*)buf, 10);
 		/////////////////////////////////////
 		if(ret != -1){
+            if (ret == 0) break;
 
-			if(strcmp(buf,"list")==10){
+			if(strcmp(buf,"list")==0){
 				for(int i=0; i<num_of_rules; i++){
 					cout << list_command[i] << endl;
 				}
 				// cout << general_info << endl;
 
 			}
-			else if (strcmp(buf,"exit")==10){
+			else if (strcmp(buf,"exit")==0){
 				break;
 			}
 			else{
-				cout << "unknown command! [list/exit]" << endl;
+                if (strlen(buf) > 1)
+				    cout << "unknown command! [list/exit]" << endl;
 			}
 		}
 	}
@@ -361,32 +341,16 @@ char* RemoveDigits(char* input)
 
 // Ref: eclass
 
-const char * composeMSTR (const string &a,  int port1,  int port2,  char *port3, char *kind )
+string composeMSTR (const string &a,  int port1,  int port2,  char *port3, char *kind )
 {
-    const char * message = (char *) malloc(8192);
-
-    // memset( (char *) &msg, 0, sizeof(msg) );
-   	// char port_1[5] = itoa(port1);
    	string port_1 = to_string(port1);
    	string port_2 = to_string(port2);
-   	// string port3 = port3;
    	string s_no  = a;
-   	// string kind  = kind;
-   	// string port_3 = to_string(port3);
-   	// string kind   = to_string(kind);
    	string port_3(port3);
    	string kind_(kind);
 
-    // msg.port1 = port1;
-    // msg.port2 = port2;
-    // strcpy(msg.port3,port3);
-    // strcpy(msg.kind,kind);
-    // strncpy(msg.switch_no,a.c_str(),sizeof(msg.switch_no)); // port1 value changed at this point;
     string MESSAGE = port_1 + ";" + port_2 + ";" + port_3 + ";" + s_no + ";" + kind_;
-    message = MESSAGE.c_str();
-
-    
-    return message;
+    return MESSAGE;
 } 
 
 
