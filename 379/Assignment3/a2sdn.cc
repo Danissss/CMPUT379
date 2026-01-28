@@ -306,14 +306,14 @@ void switches(char **arg, const string &input, char *serverAddress, int portNumb
 
 	// char rules[][20] = {};
 	// char *rules[20];
-	int package_count[] = {0};
+	int package_count[100] = {0};
 	
 	// char name[5][10] = {} ;
 	// strcpy(name[1],"abc");
 	// cout << name[1] << endl;	
 	// package_count = new int[1];
 	// rules[0] = port3; 			// original rule is always at first place;
-	char rules[][20] = {};
+	char rules[100][20];
 	strcpy(rules[0],arg[5]);
 	// cout << "rules[0] " << rules[0] << endl;
 	
@@ -373,7 +373,7 @@ void switches(char **arg, const string &input, char *serverAddress, int portNumb
 						strcat(ranges,splited_str[2]);
 						// cout << ranges << endl;
 						
-						int new_rule = 0;
+						int new_rule = 1;
 						cout << "" << endl;
 						cout << STRING << endl;
 						cout << "===========" << endl;
@@ -393,15 +393,13 @@ void switches(char **arg, const string &input, char *serverAddress, int portNumb
 								// cout << "cur_count" << cur_count << endl;
 								package_count[i] = cur_count+1;
 								// cout <<package_count[i] <<endl;
+								new_rule = 0;
 								break;
 								
 							}
 							// if all current_rules_dest_port not equal to the queried dest_port, then set new_rule to 1;
 							// otherwise, it will break from this for loop before head
 							cout << "new_rule_______________" << endl;
-							
-
-							new_rule = 1;
 							// sw1  100  200
 							// ===========
 							// current_rules100-110
