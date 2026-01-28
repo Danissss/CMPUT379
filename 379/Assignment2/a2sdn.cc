@@ -373,29 +373,6 @@ MSG composeMSTR (const string &a,  int port1,  int port2,  char *port3, char *ki
 // recive the msg struct, but send the string object;
 void sendFrame (int fd, MSG *msg)
 {
-
-	char *MESSAGE_P = (char *) malloc(8192);
-
-	// string s =  convert_int_to_string(msg->port1);
-	// // char *port1 = s.c_str();
-	// char *port1 = s[0];
-	// // cout << s << endl; // -1 
-	// // cout << port1 << endl; // -1 
-	// string s2 = convert_int_to_string(msg->port2);
-	// // char *port2 = s2.c_str();
-	// char *port2 = s2[0];
-
-	// strcat(MESSAGE_P,port1);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,port2);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,msg->port3);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,msg->switch_no);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,msg->kind);
-	// strcat(MESSAGE_P,";");
-	
 	string port1 = convert_int_to_string(msg->port1);
 	string port2 = convert_int_to_string(msg->port2);
 	string port3 = msg->port3;
@@ -403,25 +380,45 @@ void sendFrame (int fd, MSG *msg)
 	string kind  = msg->kind;
 
 	string MESSAGE = port1 + ";" + port2 + ";" + port3 + ";" + s_no + ";" + kind;
-	char const * MESSAGE_P_P = MESSAGE.c_str();
-	// cout << "sending msg: " << MESSAGE_P << endl;
-	// cout << MESSAGE_P << endl;
-	write (fd, MESSAGE_P_P, 8192); // write the message_p into fifo file with constraint 8192
 
+    char buffer[8192];
+    memset(buffer, 0, sizeof(buffer));
+
+    // Copy safe
+    if (MESSAGE.length() < sizeof(buffer)) {
+        strcpy(buffer, MESSAGE.c_str());
+    } else {
+        strncpy(buffer, MESSAGE.c_str(), sizeof(buffer) - 1);
+        buffer[sizeof(buffer)-1] = '\0';
+    }
+
+	write (fd, buffer, sizeof(buffer)); // write the message_p into fifo file with constraint 8192
 }
 
        
 string rcvFrame (int fd)
 { 
-	int len; 
-	char * MESSAGE_P = (char *) malloc(8192);
+    char buffer[8192];
+    memset(buffer, 0, sizeof(buffer));
 
-    len = read (fd, MESSAGE_P, 8192);
+    int total_read = 0;
+    while (total_read < 8192) {
+        int n = read(fd, buffer + total_read, 8192 - total_read);
+        if (n < 0) {
+            perror("read error");
+            return "";
+        }
+        if (n == 0) {
+            break; // EOF
+        }
+        total_read += n;
+    }
 
+    // Ensure null termination just in case
+    buffer[8191] = '\0';
+    string str(buffer);
 
-    string str(MESSAGE_P);
-
-    return MESSAGE_P;	  
+    return str;
 }
 
 
@@ -451,7 +448,7 @@ int split(char inStr[],  char token[][MAXWORD], char fs[])
 char * format_swi(const string &a){
 	// char const * msg = a.c_str();
 	char strings[100];
-	char delimiter[1];
+	char delimiter[2];
 	cout << a << endl;
 
 	///////////////////////////////////////
