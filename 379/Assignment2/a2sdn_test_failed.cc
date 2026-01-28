@@ -16,6 +16,7 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <poll.h>
 
 using namespace std; 
   
@@ -85,14 +86,9 @@ void controller(int n_swithes){
 
 
 
-	// variable for select()
-	// Ref: Youtube channels (keyword: select toturial)
-	int fd;
+	// variable for poll()
 	char buf[11];
-	int ret, sret;
-	fd = 0;
-	fd_set readfds;
-	// variable for select()
+	int ret;
 
 	// MSG    msg;
 	string rvc_msg;
@@ -100,12 +96,14 @@ void controller(int n_swithes){
 	char kind[10] = "OPEN";
 	string ab_string = "null";
 	char ab_char[5] = "null";
-	const char * msg = (char *) malloc(8192);
-	msg = composeMSTR(ab_string,0,0,ab_char,kind);
-	char *recieved_msg = (char *) malloc(8192);
-	read(fifo_0_1,recieved_msg,8192);
-	cout << "recieve msg from switches " << recieved_msg << endl;
-	write(fifo_1_1,msg,8192);
+
+    // Setup for poll
+    struct pollfd pds[2];
+    pds[0].fd = STDIN_FILENO;
+    pds[0].events = POLLIN;
+    pds[1].fd = fifo_0_1;
+    pds[1].events = POLLIN;
+
 	// rvc_msg = rcvFrame(fifo_0_1);
 	// cout << "recieved msg from switches: " << rvc_msg << endl;
 	// // cout << rvc_msg << endl;
@@ -122,51 +120,40 @@ void controller(int n_swithes){
 
 
 	while(1){
-		
+        if (poll(pds, 2, -1) < 0) {
+            perror("poll");
+            break;
+        }
 
-		// reciving fifo file
-		// controller always recive fifo_0_1 file 
-		
-		// recive msg from switches;
-		// how to make sure that controller print the msg when it arrived?
-		// how to get rcvFrame wait for different switch?
-		 
-		// cout << rvc_msg << endl;
-
-		// rvc_msg = rcvFrame(fifo_0_1);
-		// sendFrame(fifo_1_1, &msg);
-		// rvc_msg = rcvFrame(fifo_0_1);
-		// sendFrame(fifo_1_1, &msg);
-		// rvc_msg = rcvFrame(fifo_0_1);
-		// sendFrame(fifo_1_1, &msg);
-		// rvc_msg = rcvFrame(fifo_0_1);
-		// sendFrame(fifo_1_1, &msg);
-
-
-		///////////////////////////////////
-		FD_ZERO(&readfds);
-		FD_SET(fd,&readfds);
-		select(8,&readfds,NULL,NULL,NULL);
+        if (pds[0].revents & POLLIN) {
+            // Handle stdin
 		memset((void *) buf, 0, 11);
-		ret = read(fd, (void*)buf, 10);
-		/////////////////////////////////////
+		ret = read(STDIN_FILENO, (void*)buf, 10);
+            if (ret > 0) {
+                // Strip newline
+                if (buf[ret-1] == '\n') buf[ret-1] = '\0';
 
-		// string s; s.push_back(buf); 
+                if(strcmp(buf,"list")==0){
+                    cout << "list command" << endl;
+                }
+                else if (strcmp(buf,"exit")==0){
+                    break;
+                }
+                else{
+                    cout << "unknown command! [list/exit]" << endl;
+                }
+            }
+        }
 
-		if(ret != -1){
-			// cout << strcmp(buf,"list") << endl;
+        if (pds[1].revents & POLLIN) {
+             // Handle switch message
+             rvc_msg = rcvFrame(fifo_0_1);
+             cout << "recieve msg from switches " << rvc_msg << endl;
 
-			if(strcmp(buf,"list")==10){
-				cout << "list command" << endl;
-
-			}
-			else if (strcmp(buf,"exit")==10){
-				break;
-			}
-			else{
-				cout << "unknown command! [list/exit]" << endl;
-			}
-		}
+             // Send response (ACK)
+             const char * msg_resp = composeMSTR(ab_string,0,0,ab_char,kind);
+             write(fifo_1_1, msg_resp, 8192);
+        }
 	}
 
 
