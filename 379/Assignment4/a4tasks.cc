@@ -147,6 +147,7 @@ struct task_args {
 pthread_t ntid;
 pthread_t  TID[NTHREAD];
 pthread_mutex_t  create_mutex;
+pthread_cond_t resource_cond;
 int time_start_program;
 int num_resource;
 int iteration;
@@ -367,42 +368,46 @@ void *task_thread(void *argu){
         // int resource_unit[10]; 
         // } resource;
         
-        int get = 1;
-        while(get){
-            int expected[10];
-            int real_get[10];
+        while(true){
+            bool all_available = true;
             for(int inds = 0; inds < num_jobs; inds++){
-                char *single_resource_name = new char[32];
-                expected[inds] = resource_unit[inds];
-                strcpy(single_resource_name,resource_name[inds]);
+                int expected = resource_unit[inds];
+                char *single_resource_name = resource_name[inds];
                 for(int res_inds = 0; res_inds < num_resource; res_inds++){
                     if(strcmp(g_resource.resource_type[res_inds],single_resource_name)==0){
                         // find the same resource type
                         // get current unit of resource
-                        int current_resource_unit = g_resource.resource_unit[res_inds];
-                        int left_unit = current_resource_unit - expected[inds];
-                        // cout << "g_resource.resource_unit[res_inds]: " << g_resource.resource_unit[res_inds] << endl;
-                        if(left_unit < 0){
-                            // there is no enough unit for the resource type;
-                            // wait for the resource; go back to wait;
-                            continue;
-                        }
-                        else{
-                            // there is enough unit; take it 
-                            g_resource.resource_unit[res_inds] = left_unit;
+                        if (g_resource.resource_unit[res_inds] < expected) {
+                            all_available = false;
                         }
                     }
                 }
+                if (!all_available) break;
             }
-            get = 0;
-            // cout << "g_resource.resource_unit[res_inds]_2: " << g_resource.resource_unit[0] << endl;
 
+            if (all_available) {
+                // Take resources
+                 for(int inds = 0; inds < num_jobs; inds++){
+                    int expected = resource_unit[inds];
+                    char *single_resource_name = resource_name[inds];
+                    for(int res_inds = 0; res_inds < num_resource; res_inds++){
+                        if(strcmp(g_resource.resource_type[res_inds],single_resource_name)==0){
+                            g_resource.resource_unit[res_inds] -= expected;
+                        }
+                    }
+                }
+                break;
+            } else {
+                pthread_cond_wait(&resource_cond, &create_mutex);
+            }
         }
         int end_wait  = get_time_gap();
         total_wait_time = total_wait_time + (end_wait - start_wait);
 
         change_task_state(task_name, RUN);
-        delay(busyTime);            
+        mutex_unlock(&create_mutex);
+        delay(busyTime);
+        mutex_lock(&create_mutex);
         // after eating time, return the unit back;
 
         for(int inds = 0; inds < num_jobs; inds++){
@@ -416,6 +421,7 @@ void *task_thread(void *argu){
                 }
             }
         }
+        pthread_cond_broadcast(&resource_cond);
         
         // cout << busyTime << "and idleTime: " << idleTime << endl;
         int time_gap = get_time_gap();
@@ -491,6 +497,8 @@ void simulator(int argc, char** argv,int time_start_program){
 
     // initial_mutex
     mutex_init(&create_mutex);
+    int rval = pthread_cond_init(&resource_cond, NULL);
+    if (rval) {fprintf(stderr, "cond_init: %s\n",strerror(rval)); exit(1); }
 
 
 
