@@ -414,14 +414,14 @@ void sendFrame (int fd, MSG *msg)
 string rcvFrame (int fd)
 { 
 	int len; 
-	char * MESSAGE_P = (char *) malloc(8192);
+	char buffer[8193];
+	memset(buffer, 0, sizeof(buffer));
 
-    len = read (fd, MESSAGE_P, 8192);
+    len = read (fd, buffer, 8192);
 
+	if (len < 0) return "";
 
-    string str(MESSAGE_P);
-
-    return MESSAGE_P;	  
+    return string(buffer);
 }
 
 
