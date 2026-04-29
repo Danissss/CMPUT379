@@ -383,11 +383,19 @@ void sendFrame (int fd, MSG *msg)
 	string kind  = msg->kind;
 
 	string MESSAGE = port1 + ";" + port2 + ";" + port3 + ";" + s_no + ";" + kind;
-	char const * MESSAGE_P_P = MESSAGE.c_str();
-	// cout << "sending msg: " << MESSAGE_P << endl;
-	// cout << MESSAGE_P << endl;
-	write (fd, MESSAGE_P_P, 8192); // write the message_p into fifo file with constraint 8192
 
+    char buffer[8192];
+    memset(buffer, 0, sizeof(buffer));
+
+    // Copy safe
+    if (MESSAGE.length() < sizeof(buffer)) {
+        strcpy(buffer, MESSAGE.c_str());
+    } else {
+        strncpy(buffer, MESSAGE.c_str(), sizeof(buffer) - 1);
+        buffer[sizeof(buffer)-1] = '\0';
+    }
+
+	write (fd, buffer, sizeof(buffer)); // write the message_p into fifo file with constraint 8192
 }
 
        
