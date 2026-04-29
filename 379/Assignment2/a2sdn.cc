@@ -454,7 +454,7 @@ string rcvFrame (int fd)
 	int len; 
 	char MESSAGE_P[8192];
 
-    len = read (fd, MESSAGE_P, 8192);
+    len = read (fd, buffer, 8192);
 
     return string(MESSAGE_P);
 }
