@@ -374,28 +374,6 @@ MSG composeMSTR (const string &a,  int port1,  int port2,  char *port3, char *ki
 void sendFrame (int fd, MSG *msg)
 {
 
-	char *MESSAGE_P = (char *) malloc(8192);
-
-	// string s =  convert_int_to_string(msg->port1);
-	// // char *port1 = s.c_str();
-	// char *port1 = s[0];
-	// // cout << s << endl; // -1 
-	// // cout << port1 << endl; // -1 
-	// string s2 = convert_int_to_string(msg->port2);
-	// // char *port2 = s2.c_str();
-	// char *port2 = s2[0];
-
-	// strcat(MESSAGE_P,port1);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,port2);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,msg->port3);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,msg->switch_no);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,msg->kind);
-	// strcat(MESSAGE_P,";");
-	
 	string port1 = convert_int_to_string(msg->port1);
 	string port2 = convert_int_to_string(msg->port2);
 	string port3 = msg->port3;
