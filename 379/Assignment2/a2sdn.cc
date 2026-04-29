@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 #include <cstdlib>
+#include <vector>
 // C
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,6 +14,7 @@
 #include <sys/resource.h>
 #include <sys/select.h>
 #include <sys/wait.h>
+#include <sys/poll.h>
 #include <string.h>
 #include <stdarg.h>
 #include <sys/stat.h>
@@ -46,7 +48,7 @@ MSG composeMSTR (const string &a,  int port1,  int port2, char *port3, char *kin
 void sendFrame (int fd, MSG *msg);
 string rcvFrame (int fd);
 int split(char inStr[],  char token[][MAXWORD], char fs[]);
-char * format_swi(const string &a);
+string format_swi(const string &a);
 void set_cpu_time();
 string convert_int_to_string(int input);
 
@@ -81,24 +83,11 @@ void controller(int n_swithes){
 	int ADD  = 0;
 	// vector<string> switches(7);
 	char switches[n_swithes][50];
-
-
-	// for (int n_swith=0;n_swith <n_swithes; n_swith++){
-	// 	rvc_msg = rcvFrame(fifo_0_1); // read() inside the rvcFrame;
-	// 	sendFrame(fifo_1_1, &msg);   
-	// 	// store the msg value from switches
-	// }
-
-
+	for(int i=0; i<n_swithes; i++) memset(switches[i], 0, 50);
 
 	// variable for select()
 	// Ref: Youtube channels (keyword: select toturial)
-	int fd;
 	char buf[11];
-	int ret, sret;
-	fd = 0;
-	fd_set readfds;
-	// variable for select()
 
 	MSG    msg;
 	string rvc_msg;
@@ -113,9 +102,10 @@ void controller(int n_swithes){
 	rvc_msg = rcvFrame(fifo_0_1);
 	sendFrame(fifo_1_1, &msg);
 	cout << "recieved msg from switches: " << rvc_msg << endl;
-	char *switch_1 = format_swi(rvc_msg);
+	string switch_1 = format_swi(rvc_msg);
 
-	strcpy(switches[0],switch_1);
+	strncpy(switches[0],switch_1.c_str(),49);
+	switches[0][49] = '\0';
 
 
 
@@ -140,28 +130,90 @@ void controller(int n_swithes){
 		///////////////////////////////////
 		FD_ZERO(&readfds);
 		FD_SET(fd,&readfds);
-		select(8,&readfds,NULL,NULL,NULL);
+		if (fifo_0_1 != -1) FD_SET(fifo_0_1, &readfds);
+		int max_fd = (fifo_0_1 > fd) ? fifo_0_1 : fd;
+		select(max_fd + 1, &readfds, NULL, NULL, NULL);
+
+		if (FD_ISSET(fifo_0_1, &readfds)) {
+			rvc_msg = rcvFrame(fifo_0_1);
+			if (!rvc_msg.empty()) {
+				sendFrame(fifo_1_1, &msg);
+				cout << "recieved msg from switches: " << rvc_msg << endl;
+
+				char *switch_info = format_swi(rvc_msg);
+				int sw_idx = 0;
+				if (strncmp(switch_info, "[sw", 3) == 0) {
+					sscanf(switch_info, "[sw%d]", &sw_idx);
+					sw_idx--; // 0-based index
+				}
+
+				if (sw_idx >= 0 && sw_idx < n_swithes) {
+					strcpy(switches[sw_idx], switch_info);
+				}
+				free(switch_info);
+			}
+		}
+
 		memset((void *) buf, 0, 11);
-		ret = read(fd, (void*)buf, 10);
+		ret = -1;
+		if (FD_ISSET(fd, &readfds)) {
+			ret = read(fd, (void*)buf, 10);
+		}
 		/////////////////////////////////////
 
-		// string s; s.push_back(buf); 
+		if (fds[0].revents & POLLIN) {
+			memset((void *) buf, 0, 11);
+			int n = read(0, (void*)buf, 10);
+			if (n > 0) {
+				if(strncmp(buf,"list", 4)==0 && (buf[4] == '\n' || buf[4] == '\0')){
+					string OPEN_s = convert_int_to_string(OPEN);
+					string ACK_s = convert_int_to_string(ACK);
+					string QUERY_s = convert_int_to_string(QUERY);
+					string ADD_s = convert_int_to_string(ADD);
 
-		if(ret != -1){
-			// cout << strcmp(buf,"list") << endl;
+					string general_info_1 = "Packet Stats:\n \t Recived:  OPEN:"+ OPEN_s +" QUERY:" +QUERY_s+"\n";
+					string general_info_2 = "\t Transmitted:  ACK:"+ACK_s+" ADD:"+ADD_s;
+					string general_info = general_info_1 + general_info_2;
 
-			if(strcmp(buf,"list")==10){
-				for(int i=0; i<n_swithes; i++){
-					cout << switches[i] << endl;
+					for(int i=0; i<n_swithes; i++){
+						if (switches[i][0] != 0)
+							cout << switches[i] << endl;
+					}
+					cout << general_info << endl;
+
 				}
-				cout << general_info << endl;
+				else if (strncmp(buf,"exit", 4)==0 && (buf[4] == '\n' || buf[4] == '\0')){
+					break;
+				}
+				else{
+					cout << "unknown command! [list/exit]" << endl;
+				}
+			}
+		}
 
-			}
-			else if (strcmp(buf,"exit")==10){
-				break;
-			}
-			else{
-				cout << "unknown command! [list/exit]" << endl;
+		if (fds[1].revents & POLLIN) {
+			rvc_msg = rcvFrame(fifo_0_1);
+			if (!rvc_msg.empty()) {
+				sendFrame(fifo_1_1, &msg);
+				cout << "recieved msg from switches: " << rvc_msg << endl;
+				char *switch_1 = format_swi(rvc_msg);
+
+				int sw_idx = 0;
+				if (switch_1[0] == '[') {
+					char * end = strchr(switch_1, ']');
+					if (end) {
+						string sw_name(switch_1 + 1, end - (switch_1 + 1)); // "sw1"
+						if (sw_name.size() > 2 && sw_name.substr(0,2) == "sw") {
+							sw_idx = atoi(sw_name.substr(2).c_str()) - 1;
+						}
+					}
+				}
+
+				if (sw_idx >= 0 && sw_idx < n_swithes) {
+					strncpy(switches[sw_idx], switch_1, 49);
+					switches[sw_idx][49] = '\0';
+				}
+				free(switch_1);
 			}
 		}
 	}
@@ -374,28 +426,6 @@ MSG composeMSTR (const string &a,  int port1,  int port2,  char *port3, char *ki
 void sendFrame (int fd, MSG *msg)
 {
 
-	char *MESSAGE_P = (char *) malloc(8192);
-
-	// string s =  convert_int_to_string(msg->port1);
-	// // char *port1 = s.c_str();
-	// char *port1 = s[0];
-	// // cout << s << endl; // -1 
-	// // cout << port1 << endl; // -1 
-	// string s2 = convert_int_to_string(msg->port2);
-	// // char *port2 = s2.c_str();
-	// char *port2 = s2[0];
-
-	// strcat(MESSAGE_P,port1);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,port2);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,msg->port3);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,msg->switch_no);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,msg->kind);
-	// strcat(MESSAGE_P,";");
-	
 	string port1 = convert_int_to_string(msg->port1);
 	string port2 = convert_int_to_string(msg->port2);
 	string port3 = msg->port3;
@@ -403,25 +433,30 @@ void sendFrame (int fd, MSG *msg)
 	string kind  = msg->kind;
 
 	string MESSAGE = port1 + ";" + port2 + ";" + port3 + ";" + s_no + ";" + kind;
-	char const * MESSAGE_P_P = MESSAGE.c_str();
-	// cout << "sending msg: " << MESSAGE_P << endl;
-	// cout << MESSAGE_P << endl;
-	write (fd, MESSAGE_P_P, 8192); // write the message_p into fifo file with constraint 8192
 
+    char buffer[8192];
+    memset(buffer, 0, sizeof(buffer));
+
+    // Copy safe
+    if (MESSAGE.length() < sizeof(buffer)) {
+        strcpy(buffer, MESSAGE.c_str());
+    } else {
+        strncpy(buffer, MESSAGE.c_str(), sizeof(buffer) - 1);
+        buffer[sizeof(buffer)-1] = '\0';
+    }
+
+	write (fd, buffer, sizeof(buffer)); // write the message_p into fifo file with constraint 8192
 }
 
        
 string rcvFrame (int fd)
 { 
 	int len; 
-	char buffer[8193];
-	memset(buffer, 0, sizeof(buffer));
+	char MESSAGE_P[8192];
 
     len = read (fd, buffer, 8192);
 
-	if (len < 0) return "";
-
-    return string(buffer);
+    return string(MESSAGE_P);
 }
 
 
@@ -448,10 +483,10 @@ int split(char inStr[],  char token[][MAXWORD], char fs[])
 }
 
 
-char * format_swi(const string &a){
+string format_swi(const string &a){
 	// char const * msg = a.c_str();
 	char strings[100];
-	char delimiter[1];
+	char delimiter[2];
 	cout << a << endl;
 
 	///////////////////////////////////////
@@ -461,8 +496,8 @@ char * format_swi(const string &a){
 
 
 	//////////////////////////////////
-	char * tab2 = new char [a.length()+1];
-	strcpy (tab2, a.c_str());
+	std::vector<char> tab2(a.begin(), a.end());
+	tab2.push_back('\0');
 
 	///////////////////////////////////
 
@@ -476,23 +511,22 @@ char * format_swi(const string &a){
 	char splited_str[MAXLINE][MAXWORD];
 	// int** splited_str = new int*[MAXWORD];
 	// char string_ing[100] = "-1;-1;100-110;sw1;ACK"; // this will pass successfully
-	split(tab2,splited_str,delimiter);
+	split(tab2.data(),splited_str,delimiter);
 
 	// cout << splited_str[0] << endl;
 	// cout << splited_str[1] << endl;
 	// cout << splited_str[2] << endl;
 	// cout << splited_str[3] << endl;
 	// cout << splited_str[4] << endl;
-	char *MESSAGE_P = (char *) malloc(8192);
+
 	string switch_no(splited_str[3]);
 	string port1(splited_str[0]);
 	string port2(splited_str[1]);
 	string port3(splited_str[2]);
 	string message = "["+ switch_no +"] port1= " +port1+ ", port2= " +port2+", port3= "+port3+"\n";
  	// cout << message << endl;
- 	char const *cstr = message.c_str();
- 	strcpy(MESSAGE_P,cstr);
-	return MESSAGE_P;
+
+	return message;
 }
 
 string convert_int_to_string(int input){
