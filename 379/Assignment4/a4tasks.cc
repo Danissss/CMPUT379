@@ -224,11 +224,11 @@ void *monitor_thread(void *arg){
         }
         // print the current status:
         
-        char *wait_string = new char[25*33];
+        char wait_string[25*33];
         strcpy(wait_string,"[WAIT] ");
-        char *run_string = new char[25*33];
+        char run_string[25*33];
         strcpy(run_string,"[RUN] ");
-        char *idle_string = new char[25*33];
+        char idle_string[25*33];
         strcpy(idle_string,"[IDLE] ");
 
         for (int i = 0; i<wait_inds; i++){
@@ -322,8 +322,7 @@ void *task_thread(void *argu){
     
     // store the task type into array;
     for (int i = 0; i < num_jobs; i++){
-        char *delimiter_resource = new char[1];
-        strcpy(delimiter_resource,":");
+        char delimiter_resource[2] = ":";
         char splited_resource[MAXLINE][MAXWORD];
         split(coming_task->jobs[i],splited_resource,delimiter_resource);
 
@@ -508,7 +507,7 @@ void simulator(int argc, char** argv,int time_start_program){
             // each task thread will execute for NITER iterations?
             // if the line is resource, then create what?
             
-	        char delimiter[1];
+	        char delimiter[2];
             int num_words;
 	        strcpy(delimiter," ");
 	        char * tab = new char [STRING.length()+1];
@@ -526,7 +525,7 @@ void simulator(int argc, char** argv,int time_start_program){
                 for(int i=1; i < num_words; i++){
                     int value;
                     char *name_type = new char[32];
-                    char delimiter_resource[1];
+                    char delimiter_resource[2];
                     strcpy(delimiter_resource,":");
                     char splited_resource[MAXLINE][MAXWORD];
                     split(splited_str[i],splited_resource,delimiter_resource);
@@ -585,8 +584,7 @@ void simulator(int argc, char** argv,int time_start_program){
             
                 for (int i=4; i < num_words; i++){
                     // cout << splited_str[i] << endl;
-                    char *delimiter = new char[1];
-                    strcpy(delimiter,":");
+                    char delimiter[2] = ":";
                     char splited_resource_task[MAXLINE][MAXWORD];
                     split(splited_str[i],splited_resource_task,delimiter);
 
@@ -763,7 +761,7 @@ void change_task_state(char *task_name, char *status){
 }
 
 void split_name_value(char *string, int *value){
-    char delimiter_resource[1];
+    char delimiter_resource[2];
     char splited_resource[MAXLINE][MAXWORD];
     char * name = new char[32];
     strcpy(delimiter_resource,":");
