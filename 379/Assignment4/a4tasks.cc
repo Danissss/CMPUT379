@@ -147,6 +147,7 @@ struct task_args {
 pthread_t ntid;
 pthread_t  TID[NTHREAD];
 pthread_mutex_t  create_mutex;
+pthread_cond_t resource_cond;
 int time_start_program;
 int num_resource;
 int iteration;
@@ -405,6 +406,7 @@ void *task_thread(void *argu){
                 }
             }
         }
+        pthread_cond_broadcast(&resource_cond);
         
         int time_gap = get_time_gap();
         
@@ -475,6 +477,8 @@ void simulator(int argc, char** argv,int time_start_program){
 
     // initial_mutex
     mutex_init(&create_mutex);
+    int rval = pthread_cond_init(&resource_cond, NULL);
+    if (rval) {fprintf(stderr, "cond_init: %s\n",strerror(rval)); exit(1); }
 
 
 
