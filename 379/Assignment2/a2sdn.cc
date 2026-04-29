@@ -142,9 +142,35 @@ void controller(int n_swithes){
 		///////////////////////////////////
 		FD_ZERO(&readfds);
 		FD_SET(fd,&readfds);
-		select(8,&readfds,NULL,NULL,NULL);
+		if (fifo_0_1 != -1) FD_SET(fifo_0_1, &readfds);
+		int max_fd = (fifo_0_1 > fd) ? fifo_0_1 : fd;
+		select(max_fd + 1, &readfds, NULL, NULL, NULL);
+
+		if (FD_ISSET(fifo_0_1, &readfds)) {
+			rvc_msg = rcvFrame(fifo_0_1);
+			if (!rvc_msg.empty()) {
+				sendFrame(fifo_1_1, &msg);
+				cout << "recieved msg from switches: " << rvc_msg << endl;
+
+				char *switch_info = format_swi(rvc_msg);
+				int sw_idx = 0;
+				if (strncmp(switch_info, "[sw", 3) == 0) {
+					sscanf(switch_info, "[sw%d]", &sw_idx);
+					sw_idx--; // 0-based index
+				}
+
+				if (sw_idx >= 0 && sw_idx < n_swithes) {
+					strcpy(switches[sw_idx], switch_info);
+				}
+				free(switch_info);
+			}
+		}
+
 		memset((void *) buf, 0, 11);
-		ret = read(fd, (void*)buf, 10);
+		ret = -1;
+		if (FD_ISSET(fd, &readfds)) {
+			ret = read(fd, (void*)buf, 10);
+		}
 		/////////////////////////////////////
 
 		// string s; s.push_back(buf); 
