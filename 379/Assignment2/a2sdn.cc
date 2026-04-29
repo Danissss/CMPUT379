@@ -14,6 +14,7 @@
 #include <sys/resource.h>
 #include <sys/select.h>
 #include <sys/wait.h>
+#include <sys/poll.h>
 #include <string.h>
 #include <stdarg.h>
 #include <sys/stat.h>
@@ -82,24 +83,11 @@ void controller(int n_swithes){
 	int ADD  = 0;
 	// vector<string> switches(7);
 	char switches[n_swithes][50];
-
-
-	// for (int n_swith=0;n_swith <n_swithes; n_swith++){
-	// 	rvc_msg = rcvFrame(fifo_0_1); // read() inside the rvcFrame;
-	// 	sendFrame(fifo_1_1, &msg);   
-	// 	// store the msg value from switches
-	// }
-
-
+	for(int i=0; i<n_swithes; i++) memset(switches[i], 0, 50);
 
 	// variable for select()
 	// Ref: Youtube channels (keyword: select toturial)
-	int fd;
 	char buf[11];
-	int ret, sret;
-	fd = 0;
-	fd_set readfds;
-	// variable for select()
 
 	MSG    msg;
 	string rvc_msg;
@@ -173,23 +161,59 @@ void controller(int n_swithes){
 		}
 		/////////////////////////////////////
 
-		// string s; s.push_back(buf); 
+		if (fds[0].revents & POLLIN) {
+			memset((void *) buf, 0, 11);
+			int n = read(0, (void*)buf, 10);
+			if (n > 0) {
+				if(strncmp(buf,"list", 4)==0 && (buf[4] == '\n' || buf[4] == '\0')){
+					string OPEN_s = convert_int_to_string(OPEN);
+					string ACK_s = convert_int_to_string(ACK);
+					string QUERY_s = convert_int_to_string(QUERY);
+					string ADD_s = convert_int_to_string(ADD);
 
-		if(ret != -1){
-			// cout << strcmp(buf,"list") << endl;
+					string general_info_1 = "Packet Stats:\n \t Recived:  OPEN:"+ OPEN_s +" QUERY:" +QUERY_s+"\n";
+					string general_info_2 = "\t Transmitted:  ACK:"+ACK_s+" ADD:"+ADD_s;
+					string general_info = general_info_1 + general_info_2;
 
-			if(strcmp(buf,"list")==10){
-				for(int i=0; i<n_swithes; i++){
-					cout << switches[i] << endl;
+					for(int i=0; i<n_swithes; i++){
+						if (switches[i][0] != 0)
+							cout << switches[i] << endl;
+					}
+					cout << general_info << endl;
+
 				}
-				cout << general_info << endl;
+				else if (strncmp(buf,"exit", 4)==0 && (buf[4] == '\n' || buf[4] == '\0')){
+					break;
+				}
+				else{
+					cout << "unknown command! [list/exit]" << endl;
+				}
+			}
+		}
 
-			}
-			else if (strcmp(buf,"exit")==10){
-				break;
-			}
-			else{
-				cout << "unknown command! [list/exit]" << endl;
+		if (fds[1].revents & POLLIN) {
+			rvc_msg = rcvFrame(fifo_0_1);
+			if (!rvc_msg.empty()) {
+				sendFrame(fifo_1_1, &msg);
+				cout << "recieved msg from switches: " << rvc_msg << endl;
+				char *switch_1 = format_swi(rvc_msg);
+
+				int sw_idx = 0;
+				if (switch_1[0] == '[') {
+					char * end = strchr(switch_1, ']');
+					if (end) {
+						string sw_name(switch_1 + 1, end - (switch_1 + 1)); // "sw1"
+						if (sw_name.size() > 2 && sw_name.substr(0,2) == "sw") {
+							sw_idx = atoi(sw_name.substr(2).c_str()) - 1;
+						}
+					}
+				}
+
+				if (sw_idx >= 0 && sw_idx < n_swithes) {
+					strncpy(switches[sw_idx], switch_1, 49);
+					switches[sw_idx][49] = '\0';
+				}
+				free(switch_1);
 			}
 		}
 	}
