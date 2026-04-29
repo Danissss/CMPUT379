@@ -16,6 +16,7 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <poll.h>
 
 using namespace std; 
   
@@ -85,14 +86,9 @@ void controller(int n_swithes){
 
 
 
-	// variable for select()
-	// Ref: Youtube channels (keyword: select toturial)
-	int fd;
+	// variable for poll()
 	char buf[11];
-	int ret, sret;
-	fd = 0;
-	fd_set readfds;
-	// variable for select()
+	int ret;
 
 	// MSG    msg;
 	string rvc_msg;
