@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 #include <cstdlib>
+#include <vector>
 // C
 #include <stdlib.h>
 #include <stdio.h>
@@ -47,7 +48,7 @@ MSG composeMSTR (const string &a,  int port1,  int port2, char *port3, char *kin
 void sendFrame (int fd, MSG *msg);
 string rcvFrame (int fd);
 int split(char inStr[],  char token[][MAXWORD], char fs[]);
-char * format_swi(const string &a);
+string format_swi(const string &a);
 void set_cpu_time();
 string convert_int_to_string(int input);
 
@@ -96,18 +97,69 @@ void controller(int n_swithes){
 	char ab_char[5] = "null";
 	msg = composeMSTR(ab_string,0,0,ab_char,kind);
 
-	struct pollfd fds[2];
-	fds[0].fd = 0; // stdin
-	fds[0].events = POLLIN;
-	fds[1].fd = fifo_0_1;
-	fds[1].events = POLLIN;
+
+
+	rvc_msg = rcvFrame(fifo_0_1);
+	sendFrame(fifo_1_1, &msg);
+	cout << "recieved msg from switches: " << rvc_msg << endl;
+	string switch_1 = format_swi(rvc_msg);
+
+	strncpy(switches[0],switch_1.c_str(),49);
+	switches[0][49] = '\0';
+
+
+
+
+    string OPEN_s = convert_int_to_string(OPEN);
+	string ACK_s = convert_int_to_string(ACK);
+	string QUERY_s = convert_int_to_string(QUERY);
+	string ADD_s = convert_int_to_string(ADD);
+
+	string general_info_1 = "Packet Stats:\n \t Recived:  OPEN:"+ OPEN_s +" QUERY:" +QUERY_s+"\n";
+	string general_info_2 = "\t Transmitted:  ACK:"+ACK_s+" ADD:"+ADD_s;
+
+	string general_info = general_info_1 + general_info_2;
+
+
+
 
 	while(1){
-		int ret = poll(fds, 2, -1);
-		if (ret < 0) {
-			perror("poll");
-			break;
+		
+
+
+		///////////////////////////////////
+		FD_ZERO(&readfds);
+		FD_SET(fd,&readfds);
+		if (fifo_0_1 != -1) FD_SET(fifo_0_1, &readfds);
+		int max_fd = (fifo_0_1 > fd) ? fifo_0_1 : fd;
+		select(max_fd + 1, &readfds, NULL, NULL, NULL);
+
+		if (FD_ISSET(fifo_0_1, &readfds)) {
+			rvc_msg = rcvFrame(fifo_0_1);
+			if (!rvc_msg.empty()) {
+				sendFrame(fifo_1_1, &msg);
+				cout << "recieved msg from switches: " << rvc_msg << endl;
+
+				char *switch_info = format_swi(rvc_msg);
+				int sw_idx = 0;
+				if (strncmp(switch_info, "[sw", 3) == 0) {
+					sscanf(switch_info, "[sw%d]", &sw_idx);
+					sw_idx--; // 0-based index
+				}
+
+				if (sw_idx >= 0 && sw_idx < n_swithes) {
+					strcpy(switches[sw_idx], switch_info);
+				}
+				free(switch_info);
+			}
 		}
+
+		memset((void *) buf, 0, 11);
+		ret = -1;
+		if (FD_ISSET(fd, &readfds)) {
+			ret = read(fd, (void*)buf, 10);
+		}
+		/////////////////////////////////////
 
 		if (fds[0].revents & POLLIN) {
 			memset((void *) buf, 0, 11);
@@ -373,6 +425,7 @@ MSG composeMSTR (const string &a,  int port1,  int port2,  char *port3, char *ki
 // recive the msg struct, but send the string object;
 void sendFrame (int fd, MSG *msg)
 {
+
 	string port1 = convert_int_to_string(msg->port1);
 	string port2 = convert_int_to_string(msg->port2);
 	string port3 = msg->port3;
@@ -381,32 +434,29 @@ void sendFrame (int fd, MSG *msg)
 
 	string MESSAGE = port1 + ";" + port2 + ";" + port3 + ";" + s_no + ";" + kind;
 
-	char *MESSAGE_P = (char *) calloc(1, 8192);
-	if (MESSAGE_P) {
-		strncpy(MESSAGE_P, MESSAGE.c_str(), 8192 - 1);
-		write (fd, MESSAGE_P, 8192); // write the message_p into fifo file with constraint 8192
-		free(MESSAGE_P);
-	}
+    char buffer[8192];
+    memset(buffer, 0, sizeof(buffer));
+
+    // Copy safe
+    if (MESSAGE.length() < sizeof(buffer)) {
+        strcpy(buffer, MESSAGE.c_str());
+    } else {
+        strncpy(buffer, MESSAGE.c_str(), sizeof(buffer) - 1);
+        buffer[sizeof(buffer)-1] = '\0';
+    }
+
+	write (fd, buffer, sizeof(buffer)); // write the message_p into fifo file with constraint 8192
 }
 
        
 string rcvFrame (int fd)
 { 
 	int len; 
-	char * MESSAGE_P = (char *) calloc(1, 8192);
-	if (!MESSAGE_P) return "";
+	char MESSAGE_P[8192];
 
     len = read (fd, MESSAGE_P, 8192);
 
-	if (len <= 0) {
-		free(MESSAGE_P);
-		return "";
-	}
-
-    string str(MESSAGE_P);
-	free(MESSAGE_P);
-
-    return str;
+    return string(MESSAGE_P);
 }
 
 
@@ -433,7 +483,7 @@ int split(char inStr[],  char token[][MAXWORD], char fs[])
 }
 
 
-char * format_swi(const string &a){
+string format_swi(const string &a){
 	// char const * msg = a.c_str();
 	char strings[100];
 	char delimiter[2];
@@ -446,8 +496,8 @@ char * format_swi(const string &a){
 
 
 	//////////////////////////////////
-	char * tab2 = new char [a.length()+1];
-	strcpy (tab2, a.c_str());
+	std::vector<char> tab2(a.begin(), a.end());
+	tab2.push_back('\0');
 
 	///////////////////////////////////
 
@@ -461,23 +511,22 @@ char * format_swi(const string &a){
 	char splited_str[MAXLINE][MAXWORD];
 	// int** splited_str = new int*[MAXWORD];
 	// char string_ing[100] = "-1;-1;100-110;sw1;ACK"; // this will pass successfully
-	split(tab2,splited_str,delimiter);
+	split(tab2.data(),splited_str,delimiter);
 
 	// cout << splited_str[0] << endl;
 	// cout << splited_str[1] << endl;
 	// cout << splited_str[2] << endl;
 	// cout << splited_str[3] << endl;
 	// cout << splited_str[4] << endl;
-	char *MESSAGE_P = (char *) malloc(8192);
+
 	string switch_no(splited_str[3]);
 	string port1(splited_str[0]);
 	string port2(splited_str[1]);
 	string port3(splited_str[2]);
 	string message = "["+ switch_no +"] port1= " +port1+ ", port2= " +port2+", port3= "+port3+"\n";
  	// cout << message << endl;
- 	char const *cstr = message.c_str();
- 	strcpy(MESSAGE_P,cstr);
-	return MESSAGE_P;
+
+	return message;
 }
 
 string convert_int_to_string(int input){

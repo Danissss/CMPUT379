@@ -123,7 +123,7 @@ int main(){
       argument = malloc(sizeof(char)*10);
       *argument = malloc(sizeof(char)*10);
       if(strcmp(command,"run")==0){
-        char *b = malloc(sizeof(int)*10);
+        char *b = command;
         
 
         while(b != NULL){

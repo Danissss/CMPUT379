@@ -102,15 +102,19 @@ void controller(int n_swithes){
 	char ab_char[5] = "null";
 	msg = composeMSTR(ab_string,0,0,ab_char,kind);
 
-	// rvc_msg = rcvFrame(fifo_0_1);
-	// cout << "recieved msg from switches: " << rvc_msg << endl;
-	// // cout << rvc_msg << endl;
-	// sendFrame(fifo_1_1, &msg); 
 	// cout << "in while"  << endl;
 	char *nul = (char *) malloc(100);
 	read(fifo_0_1,nul,100);
 	cout << nul << endl;
-	write(fifo_1_1,"open",100);
+
+	char open_msg[100] = {0};
+	strncpy(open_msg, "open", 99);
+	write(fifo_1_1, open_msg, 100);
+
+	rvc_msg = rcvFrame(fifo_0_1);
+	cout << "recieved msg from switches: " << rvc_msg << endl;
+	// cout << rvc_msg << endl;
+	sendFrame(fifo_1_1, &msg);
 
 	// rvc_msg = rcvFrame(fifo_0_1);
 	// cout << "recieved msg from switches: " << rvc_msg << endl;
@@ -149,7 +153,7 @@ void controller(int n_swithes){
 
 		// string s; s.push_back(buf); 
 
-		if(ret != -1){
+		if(ret > 0){
 			// cout << strcmp(buf,"list") << endl;
 
 			if(strcmp(buf,"list")==10){
@@ -212,9 +216,8 @@ void switches(char **arg, const string &input){
 	ifstream myfile;
 	string STRING;
 	myfile.open(arg[2]);
-	while(!myfile.eof()) // To get you all the lines.
+	while(getline(myfile,STRING)) // To get you all the lines.
 	{
-        getline(myfile,STRING); // Saves the line in STRING.
         // cout<< STRING.substr(0,1) <<endl;// Prints our STRING.
         // cout <<STRING.substr(0,1).compare("") << endl;
         int src_port, dest_port;
@@ -264,7 +267,10 @@ void switches(char **arg, const string &input){
 
 	send_msg = composeMSTR(input,port1,port2,port3,kind);
 	
-	write(fifo_0_1,"hello",100);
+	char hello_msg[100] = {0};
+	strncpy(hello_msg, "hello", 99);
+	write(fifo_0_1, hello_msg, 100);
+
     char *nul = (char *) malloc(100);
     read(fifo_1_1,nul,100);
     cout << nul << endl;
@@ -309,7 +315,7 @@ void switches(char **arg, const string &input){
 		memset((void *) buf, 0, 11);
 		ret = read(fd, (void*)buf, 10);
 		/////////////////////////////////////
-		if(ret != -1){
+		if(ret > 0){
 
 			if(strcmp(buf,"list")==10){
 				for(int i=0; i<num_of_rules; i++){
@@ -385,28 +391,49 @@ void sendFrame (int fd, MSG *msg)
 
 
 	string MESSAGE = port1 + ";" + port2 + ";" + port3 + ";" + s_no + ";" + kind;
-	const char * MESSAGE_P = MESSAGE.c_str();
 
-	cout << "sending msg: " << MESSAGE_P << endl;
+	cout << "sending msg: " << MESSAGE << endl;
 
-	write (fd, MESSAGE_P, 8192); // write the message_p into fifo file with constraint 8192
+	char buffer[8192];
+	memset(buffer, 0, 8192);
+	strncpy(buffer, MESSAGE.c_str(), 8191);
 
+	size_t total_written = 0;
+	while(total_written < 8192) {
+		ssize_t written = write(fd, buffer + total_written, 8192 - total_written);
+		if (written < 0) {
+			perror("write");
+			break;
+		}
+		total_written += written;
+	}
 }
 
        
 string rcvFrame (int fd)
 { 
-	int len; 
-	char * MESSAGE_P = (char *) malloc(8192);
-	// char * MESSAGE_P = new char[100];
-	// len = read (fd, MESSAGE_P, sizeof(MESSAGE_P)*10); // works
 	cout << "rcvFRAME" << endl;
-    len = read (fd, MESSAGE_P, 8192);
+	char buffer[8192];
+	memset(buffer, 0, 8192);
 
-    cout << "len from rcvFrame: " << len << endl;
-    string str(MESSAGE_P);
-    cout << "value return from read: " << MESSAGE_P << endl;
-    return MESSAGE_P;	  
+	size_t total_read = 0;
+	while(total_read < 8192) {
+		ssize_t len = read(fd, buffer + total_read, 8192 - total_read);
+		if (len < 0) {
+			perror("read");
+			break;
+		}
+		if (len == 0) {
+			break; // EOF
+		}
+		total_read += len;
+	}
+
+	cout << "len from rcvFrame: " << total_read << endl;
+	buffer[8191] = '\0';
+
+	cout << "value return from read: " << buffer << endl;
+	return string(buffer);
 }
 
 
