@@ -8,6 +8,7 @@
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include <string.h>
+#include <ctype.h>
 
 #define typename(x) _Generic((x), \
     int:     "int", \
@@ -41,6 +42,17 @@ void getTime(int past_time){
 	printf("child sys:   %f sec.\n", child_sys_time); 
 }
 
+int is_valid_int(const char *str) {
+  if (str == NULL || *str == '\0') return 0;
+  char *endptr;
+  strtol(str, &endptr, 10);
+
+  if (endptr == str) return 0; // No digits found
+
+  // Skip trailing whitespace/newline
+  while (*endptr != '\0' && isspace((unsigned char)*endptr)) endptr++;
+  return *endptr == '\0';
+}
 
 int convert_command_int(char *input){
   //printf("entered string is %s\n",input);
@@ -113,7 +125,7 @@ int main(){
         }else if(strcmp(c,"") == 0 || strcmp(c," ") == 0 || strcmp(c,"\n") == 0){
           jobNo = -1;
         }
-        else if(strcmp(typename(c), "int") != 0){ //this needs to fix
+        else if(!is_valid_int(c)){ //this needs to fix
           jobNo = -1;
         }
         else
@@ -244,9 +256,3 @@ int main(){
 
 
 }
-
-
-
-
-
-
