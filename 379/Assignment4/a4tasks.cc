@@ -224,11 +224,11 @@ void *monitor_thread(void *arg){
         }
         // print the current status:
         
-        char *wait_string = new char[25*33];
+        char wait_string[25*33];
         strcpy(wait_string,"[WAIT] ");
-        char *run_string = new char[25*33];
+        char run_string[25*33];
         strcpy(run_string,"[RUN] ");
-        char *idle_string = new char[25*33];
+        char idle_string[25*33];
         strcpy(idle_string,"[IDLE] ");
 
         for (int i = 0; i<wait_inds; i++){
@@ -322,8 +322,7 @@ void *task_thread(void *argu){
     
     // store the task type into array;
     for (int i = 0; i < num_jobs; i++){
-        char *delimiter_resource = new char[1];
-        strcpy(delimiter_resource,":");
+        char delimiter_resource[2] = ":";
         char splited_resource[MAXLINE][MAXWORD];
         split(coming_task->jobs[i],splited_resource,delimiter_resource);
 
@@ -348,84 +347,69 @@ void *task_thread(void *argu){
         int start_wait = get_time_gap();
 
         
-        mutex_lock(&create_mutex);
+        // Atomic resource acquisition loop
+        while (true) {
+            mutex_lock(&create_mutex);
 
-        // int end_wait  = get_time_gap();
-        // total_wait_time = total_wait_time + (end_wait - start_wait);
-
-        // change_task_state(task_name, RUN);
-        // cout << "task_list.status[current_task_num]: " << task_list.status[current_task_num] << endl;
-
-        // get total wait time for this thread for the task, then increment to 
-        // task_list.WAIT_time[current_task_num] = task_list.WAIT_time[current_task_num] + total_wait_time;
-        // take resources;
-
-        // delay(busyTime);
-        // set up the flag for determine whether the resource is allocated
-        //typedef struct { 
-        // char resource_type[10][32]; 
-        // int resource_unit[10]; 
-        // } resource;
-        
-        int get = 1;
-        while(get){
-            int expected[10];
-            int real_get[10];
+            // 1. Check if ALL required resources are available
+            bool can_acquire = true;
             for(int inds = 0; inds < num_jobs; inds++){
-                char *single_resource_name = new char[32];
-                expected[inds] = resource_unit[inds];
-                strcpy(single_resource_name,resource_name[inds]);
+                // resource_name[inds], resource_unit[inds]
                 for(int res_inds = 0; res_inds < num_resource; res_inds++){
-                    if(strcmp(g_resource.resource_type[res_inds],single_resource_name)==0){
-                        // find the same resource type
-                        // get current unit of resource
-                        int current_resource_unit = g_resource.resource_unit[res_inds];
-                        int left_unit = current_resource_unit - expected[inds];
-                        // cout << "g_resource.resource_unit[res_inds]: " << g_resource.resource_unit[res_inds] << endl;
-                        if(left_unit < 0){
-                            // there is no enough unit for the resource type;
-                            // wait for the resource; go back to wait;
-                            continue;
+                    if(strcmp(g_resource.resource_type[res_inds], resource_name[inds])==0){
+                        if (g_resource.resource_unit[res_inds] < resource_unit[inds]) {
+                            can_acquire = false;
                         }
-                        else{
-                            // there is enough unit; take it 
-                            g_resource.resource_unit[res_inds] = left_unit;
+                        break; // Found the resource type, check next job requirement
+                    }
+                }
+                if (!can_acquire) break;
+            }
+
+            if (can_acquire) {
+                // 2. Take resources
+                for(int inds = 0; inds < num_jobs; inds++){
+                    for(int res_inds = 0; res_inds < num_resource; res_inds++){
+                        if(strcmp(g_resource.resource_type[res_inds], resource_name[inds])==0){
+                            g_resource.resource_unit[res_inds] -= resource_unit[inds];
+                            break;
                         }
                     }
                 }
+
+                int end_wait  = get_time_gap();
+                total_wait_time = total_wait_time + (end_wait - start_wait);
+
+                change_task_state(task_name, RUN);
+
+                mutex_unlock(&create_mutex);
+                break; // Exit the loop
+            } else {
+                mutex_unlock(&create_mutex);
+                delay(5); // Wait before retrying
             }
-            get = 0;
-            // cout << "g_resource.resource_unit[res_inds]_2: " << g_resource.resource_unit[0] << endl;
-
         }
-        int end_wait  = get_time_gap();
-        total_wait_time = total_wait_time + (end_wait - start_wait);
 
-        change_task_state(task_name, RUN);
-        delay(busyTime);            
+        delay(busyTime);
+
+        mutex_lock(&create_mutex);
         // after eating time, return the unit back;
 
         for(int inds = 0; inds < num_jobs; inds++){
-            char *single_resource_name = new char[32];
             // resource_unit[inds]; is the desired unit for current resource type
-            strcpy(single_resource_name,resource_name[inds]);
             for(int res_inds = 0; res_inds < num_resource; res_inds++){
-                if(strcmp(g_resource.resource_type[res_inds],single_resource_name)==0){
+                if(strcmp(g_resource.resource_type[res_inds], resource_name[inds])==0){
                     // find the same resource type; give back to the resource
                     g_resource.resource_unit[res_inds] = g_resource.resource_unit[res_inds] + resource_unit[inds];
+                    break;
                 }
             }
         }
         
-        // cout << busyTime << "and idleTime: " << idleTime << endl;
         int time_gap = get_time_gap();
         
-        //cout << "task " << coming_task->task_name << " (tid= " << threadNum << ", iter= " << task_iter << ", time= " << time_gap << " msec)" << endl;
         printf("task %s (tid= %lu, iter= %d, time= %d msec)\n",task_name,threadNum,task_iter,time_gap);
-        // cout << "task " << task_name << " (tid= " << threadNum << ", iter= " << task_iter << ", time= " << time_gap << " msec)" << endl;
         
-        
-
         mutex_unlock(&create_mutex);
         // cout << "g_resource.resource_unit[res_inds]_3: " << g_resource.resource_unit[0] << endl;
         change_task_state(task_name, IDLE);    // enter the idle state
@@ -508,7 +492,7 @@ void simulator(int argc, char** argv,int time_start_program){
             // each task thread will execute for NITER iterations?
             // if the line is resource, then create what?
             
-	        char delimiter[1];
+	        char delimiter[2];
             int num_words;
 	        strcpy(delimiter," ");
 	        char * tab = new char [STRING.length()+1];
@@ -526,7 +510,7 @@ void simulator(int argc, char** argv,int time_start_program){
                 for(int i=1; i < num_words; i++){
                     int value;
                     char *name_type = new char[32];
-                    char delimiter_resource[1];
+                    char delimiter_resource[2];
                     strcpy(delimiter_resource,":");
                     char splited_resource[MAXLINE][MAXWORD];
                     split(splited_str[i],splited_resource,delimiter_resource);
@@ -585,8 +569,7 @@ void simulator(int argc, char** argv,int time_start_program){
             
                 for (int i=4; i < num_words; i++){
                     // cout << splited_str[i] << endl;
-                    char *delimiter = new char[1];
-                    strcpy(delimiter,":");
+                    char delimiter[2] = ":";
                     char splited_resource_task[MAXLINE][MAXWORD];
                     split(splited_str[i],splited_resource_task,delimiter);
 
@@ -763,7 +746,7 @@ void change_task_state(char *task_name, char *status){
 }
 
 void split_name_value(char *string, int *value){
-    char delimiter_resource[1];
+    char delimiter_resource[2];
     char splited_resource[MAXLINE][MAXWORD];
     char * name = new char[32];
     strcpy(delimiter_resource,":");
