@@ -169,7 +169,7 @@ void controller(int n_swithes, int portNumber){
 
 						newsockfd = accept(sockfd,  (struct sockaddr *) &cli_addr, &clilen);
 						if (newsockfd < 0) { error("ERROR on accept"); }  // error checking for accept
-						char *buffer = new char[10];
+						char *buffer = new char[256];
 						
 						// using array to store the newsockfd for all switches!
 						// write back to that newsockfd corresponding to the switches.
@@ -306,15 +306,15 @@ void switches(char **arg, const string &input, char *serverAddress, int portNumb
 
 	// char rules[][20] = {};
 	// char *rules[20];
-	int package_count[] = {0};
 	
 	// char name[5][10] = {} ;
 	// strcpy(name[1],"abc");
 	// cout << name[1] << endl;	
 	// package_count = new int[1];
 	// rules[0] = port3; 			// original rule is always at first place;
-	char rules[][20] = {};
+	char rules[1000][20] = {};
 	strcpy(rules[0],arg[5]);
+    int package_count[1000] = {0};
 	// cout << "rules[0] " << rules[0] << endl;
 	
 	//parse String
@@ -333,12 +333,13 @@ void switches(char **arg, const string &input, char *serverAddress, int portNumb
 		int file_lines = 0;
         if (STRING.substr(0,1).compare("#")!=0 && STRING.substr(0,1).compare("")!=0 ){
 			// split string here:
-			char delimiter[1];
+			char delimiter[2];
 			strcpy(delimiter," ");
 			char * tab2 = new char [STRING.length()+1];
 			strcpy (tab2, STRING.c_str());
 			char splited_str[MAXLINE][MAXWORD];
 			split(tab2,splited_str,delimiter);
+			delete[] tab2;
 			// cout << splited_str[0] << endl;  // sw1
 			// cout << splited_str[1] << endl;  // 100
 			// cout << splited_str[2] << endl;  // 102
@@ -367,18 +368,18 @@ void switches(char **arg, const string &input, char *serverAddress, int portNumb
         			}else{
 						// for new rule, all I need to know is the destination port (splited_str[2])
 						// for print out, if new rule is 701 then it will look like 701-701
-						char *ranges = new char[10];
-						strcat(ranges,splited_str[2]);
+						char ranges[20];
+						strcpy(ranges,splited_str[2]);
 						strcat(ranges,"-");
 						strcat(ranges,splited_str[2]);
 						// cout << ranges << endl;
 						
-						int new_rule = 0;
+						int new_rule = 1;
 						cout << "" << endl;
 						cout << STRING << endl;
 						cout << "===========" << endl;
 						for(int i=0;i<num_of_rules;i++){
-							char *current_rules = new char[20];
+							char current_rules[20];
 							strcpy(current_rules,rules[i]);
 							// cout << *rules << endl;
 							cout << "current_rules" << current_rules << endl;
@@ -393,15 +394,13 @@ void switches(char **arg, const string &input, char *serverAddress, int portNumb
 								// cout << "cur_count" << cur_count << endl;
 								package_count[i] = cur_count+1;
 								// cout <<package_count[i] <<endl;
+								new_rule = 0;
 								break;
 								
 							}
 							// if all current_rules_dest_port not equal to the queried dest_port, then set new_rule to 1;
 							// otherwise, it will break from this for loop before head
 							cout << "new_rule_______________" << endl;
-							
-
-							new_rule = 1;
 							// sw1  100  200
 							// ===========
 							// current_rules100-110
@@ -742,7 +741,7 @@ int split(char inStr[],  char token[][MAXWORD], char fs[])
 char * format_swi(const string &a){
 	// char const * msg = a.c_str();
 	char strings[100];
-	char delimiter[1];
+	char delimiter[2];
 	strcpy(delimiter,";");
 	//////////////////////////////////
 	char * tab2 = new char [a.length()+1];
