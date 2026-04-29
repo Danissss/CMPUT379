@@ -4,6 +4,7 @@
 #include <fstream>
 #include <string>
 #include <cstdlib>
+#include <vector>
 // C
 #include <stdlib.h>
 #include <stdio.h>
@@ -46,7 +47,7 @@ MSG composeMSTR (const string &a,  int port1,  int port2, char *port3, char *kin
 void sendFrame (int fd, MSG *msg);
 string rcvFrame (int fd);
 int split(char inStr[],  char token[][MAXWORD], char fs[]);
-char * format_swi(const string &a);
+string format_swi(const string &a);
 void set_cpu_time();
 string convert_int_to_string(int input);
 
@@ -113,9 +114,10 @@ void controller(int n_swithes){
 	rvc_msg = rcvFrame(fifo_0_1);
 	sendFrame(fifo_1_1, &msg);
 	cout << "recieved msg from switches: " << rvc_msg << endl;
-	char *switch_1 = format_swi(rvc_msg);
+	string switch_1 = format_swi(rvc_msg);
 
-	strcpy(switches[0],switch_1);
+	strncpy(switches[0],switch_1.c_str(),49);
+	switches[0][49] = '\0';
 
 
 
@@ -400,28 +402,6 @@ MSG composeMSTR (const string &a,  int port1,  int port2,  char *port3, char *ki
 void sendFrame (int fd, MSG *msg)
 {
 
-	char *MESSAGE_P = (char *) malloc(8192);
-
-	// string s =  convert_int_to_string(msg->port1);
-	// // char *port1 = s.c_str();
-	// char *port1 = s[0];
-	// // cout << s << endl; // -1 
-	// // cout << port1 << endl; // -1 
-	// string s2 = convert_int_to_string(msg->port2);
-	// // char *port2 = s2.c_str();
-	// char *port2 = s2[0];
-
-	// strcat(MESSAGE_P,port1);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,port2);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,msg->port3);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,msg->switch_no);
-	// strcat(MESSAGE_P,";");
-	// strcat(MESSAGE_P,msg->kind);
-	// strcat(MESSAGE_P,";");
-	
 	string port1 = convert_int_to_string(msg->port1);
 	string port2 = convert_int_to_string(msg->port2);
 	string port3 = msg->port3;
@@ -429,31 +409,30 @@ void sendFrame (int fd, MSG *msg)
 	string kind  = msg->kind;
 
 	string MESSAGE = port1 + ";" + port2 + ";" + port3 + ";" + s_no + ";" + kind;
-	char const * MESSAGE_P_P = MESSAGE.c_str();
-	// cout << "sending msg: " << MESSAGE_P << endl;
-	// cout << MESSAGE_P << endl;
-	write (fd, MESSAGE_P_P, 8192); // write the message_p into fifo file with constraint 8192
 
+    char buffer[8192];
+    memset(buffer, 0, sizeof(buffer));
+
+    // Copy safe
+    if (MESSAGE.length() < sizeof(buffer)) {
+        strcpy(buffer, MESSAGE.c_str());
+    } else {
+        strncpy(buffer, MESSAGE.c_str(), sizeof(buffer) - 1);
+        buffer[sizeof(buffer)-1] = '\0';
+    }
+
+	write (fd, buffer, sizeof(buffer)); // write the message_p into fifo file with constraint 8192
 }
 
        
 string rcvFrame (int fd)
 { 
 	int len; 
-	char * MESSAGE_P = (char *) malloc(8193);
-	memset(MESSAGE_P, 0, 8193);
+	char MESSAGE_P[8192];
 
     len = read (fd, MESSAGE_P, 8192);
 
-	if (len <= 0) {
-		free(MESSAGE_P);
-		return "";
-	}
-
-    string str(MESSAGE_P);
-	free(MESSAGE_P);
-
-    return str;
+    return string(MESSAGE_P);
 }
 
 
@@ -480,10 +459,10 @@ int split(char inStr[],  char token[][MAXWORD], char fs[])
 }
 
 
-char * format_swi(const string &a){
+string format_swi(const string &a){
 	// char const * msg = a.c_str();
 	char strings[100];
-	char delimiter[1];
+	char delimiter[2];
 	cout << a << endl;
 
 	///////////////////////////////////////
@@ -493,8 +472,8 @@ char * format_swi(const string &a){
 
 
 	//////////////////////////////////
-	char * tab2 = new char [a.length()+1];
-	strcpy (tab2, a.c_str());
+	std::vector<char> tab2(a.begin(), a.end());
+	tab2.push_back('\0');
 
 	///////////////////////////////////
 
@@ -508,23 +487,22 @@ char * format_swi(const string &a){
 	char splited_str[MAXLINE][MAXWORD];
 	// int** splited_str = new int*[MAXWORD];
 	// char string_ing[100] = "-1;-1;100-110;sw1;ACK"; // this will pass successfully
-	split(tab2,splited_str,delimiter);
+	split(tab2.data(),splited_str,delimiter);
 
 	// cout << splited_str[0] << endl;
 	// cout << splited_str[1] << endl;
 	// cout << splited_str[2] << endl;
 	// cout << splited_str[3] << endl;
 	// cout << splited_str[4] << endl;
-	char *MESSAGE_P = (char *) malloc(8192);
+
 	string switch_no(splited_str[3]);
 	string port1(splited_str[0]);
 	string port2(splited_str[1]);
 	string port3(splited_str[2]);
 	string message = "["+ switch_no +"] port1= " +port1+ ", port2= " +port2+", port3= "+port3+"\n";
  	// cout << message << endl;
- 	char const *cstr = message.c_str();
- 	strcpy(MESSAGE_P,cstr);
-	return MESSAGE_P;
+
+	return message;
 }
 
 string convert_int_to_string(int input){
