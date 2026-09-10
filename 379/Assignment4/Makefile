@@ -6,6 +6,12 @@ compile:
 	# g++ -o a2sdn  a2sdn.cc
 	g++  a4tasks.cc -lpthread -o a4tasks
 
+test: test_RemoveDigits
+	./test_RemoveDigits
+
+test_RemoveDigits: test_RemoveDigits.cc a4tasks.cc
+	g++ test_RemoveDigits.cc -lpthread -o test_RemoveDigits
+
 eclass:
 	gcc -o raceA raceA.c -lpthread
 	gcc -o raceB raceB.c -lpthread

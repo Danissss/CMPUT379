@@ -41,6 +41,7 @@
 #include <inttypes.h>
 #include <math.h>
 #include <sys/time.h>
+#include <ctype.h>
 
 
 using namespace std; 
@@ -889,6 +890,7 @@ void error(const char *msg)
     exit(0);
 }
 
+#ifndef UNIT_TEST
 int main(int argc, char** argv) 
 { 
 	//
@@ -914,3 +916,4 @@ int main(int argc, char** argv)
   
     return 0; 
 } 
+#endif
