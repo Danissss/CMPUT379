@@ -31,6 +31,7 @@
 #include <netdb.h> 
 #include <poll.h>
 #include <time.h>
+#include <cassert>
 
 using namespace std; 
   
@@ -817,7 +818,7 @@ void switches(char **arg, const string &input, char *serverAddress, int portNumb
 							string port1_s = convert_int_to_string(msg_in_switch.port1);
 							string port2_s = convert_int_to_string(msg_in_switch.port2);
 							string actions(msg_in_switch.port3);
-							string other_rules = "[0]"+"(srcIP= 0-1000, destIP= "+port1_s+"-"+port2_s+", action= "+ actions +": " + original_pkgCount_s + " pri= 4, pkgCount= " + pkgCount_s + ")";
+							string other_rules = string("[0]")+"(srcIP= 0-1000, destIP= "+port1_s+"-"+port2_s+", action= "+ actions +": " + original_pkgCount_s + " pri= 4, pkgCount= " + pkgCount_s + ")";
 							list_command[num_of_rules] = other_rules;
 						}
 						else{
