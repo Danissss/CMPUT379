@@ -1,0 +1,37 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Assignment 1
+        run: |
+          cd 379/Assignment1
+          make compile
+
+      - name: Build Assignment 2
+        run: |
+          cd 379/Assignment2
+          make compile
+
+      - name: Build Assignment 3
+        run: |
+          cd 379/Assignment3
+          make compile
+
+      - name: Build and Test Assignment 4
+        run: |
+          cd 379/Assignment4
+          make compile
+          make test
+          make test_linked_list
