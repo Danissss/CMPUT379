@@ -181,6 +181,7 @@ void reverse(struct node** head_ref) {
    *head_ref = prev;
 }
 
+#ifndef UNIT_TEST
 void main() {
    insertFirst(1,10);
    insertFirst(2,20);
@@ -247,6 +248,7 @@ void main() {
    printf("\nList after reversing the data: ");
    printList();
 }
+#endif
 // If we compile and run the above program, it will produce the following result −
 
 // Output

@@ -25,6 +25,11 @@ clean_eclass:
 	rm raceD
 	rm raceE
 
+.PHONY: test_linked_list
+test_linked_list: test_linked_list.c linked_list.c
+	gcc -o test_linked_list test_linked_list.c
+	./test_linked_list
+
 tar:
 	tar -cvf submit.tar *
 
